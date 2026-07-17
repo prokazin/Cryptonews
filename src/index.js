@@ -1,6 +1,6 @@
 // ========== КОНФИГУРАЦИЯ ==========
 const BOT_TOKEN = '8422981212:AAFx0HvRRFZy-JlTno_NXzUzpm2rJ-KWrBY';
-const CHANNEL_ID = -1004345602790; // ВАШ CHAT_ID
+const CHANNEL_ID = -1004345602790;
 
 // ========== ИСТОЧНИКИ НОВОСТЕЙ ==========
 const SOURCES = {
@@ -26,14 +26,31 @@ const SOURCES = {
 const newsStore = new Map();
 let stats = { total: 0, sent: 0, duplicates: 0, lastUpdate: null };
 
-// ========== ПЕРЕВОД НА РУССКИЙ ==========
+// ========== КЕШ ДЛЯ ПЕРЕВОДА ==========
+const translateCache = new Map();
+
+// ========== ПЕРЕВОД НА РУССКИЙ (с кешем) ==========
 async function translateToRussian(text) {
+  // Проверяем кеш
+  if (translateCache.has(text)) {
+    return translateCache.get(text);
+  }
+  
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ru`;
     const response = await fetch(url);
     const data = await response.json();
+    
     if (data.responseData && data.responseData.translatedText) {
-      return data.responseData.translatedText;
+      const translated = data.responseData.translatedText;
+      // Сохраняем в кеш
+      translateCache.set(text, translated);
+      // Ограничиваем кеш до 1000 записей
+      if (translateCache.size > 1000) {
+        const firstKey = translateCache.keys().next().value;
+        translateCache.delete(firstKey);
+      }
+      return translated;
     }
     return text;
   } catch (error) {
@@ -60,8 +77,15 @@ async function fetchRSS(url) {
       const guid = item.match(/<guid>(.*?)<\/guid>/)?.[1]?.trim() || link;
       
       if (title && link) {
-        const translatedTitle = await translateToRussian(title);
-        items.push({ title: translatedTitle, link, pubDate, id: guid });
+        // Переводим только если новость новая (для экономии лимитов)
+        if (!newsStore.has(guid)) {
+          const translatedTitle = await translateToRussian(title);
+          items.push({ title: translatedTitle, link, pubDate, id: guid });
+        } else {
+          // Если новость уже есть - берем сохраненный перевод
+          const existing = newsStore.get(guid);
+          items.push({ title: existing.title, link, pubDate, id: guid });
+        }
       }
     }
     return items;
@@ -133,7 +157,7 @@ const HTML_PAGE = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Крипто Новости</title>
+  <title>COIN DIGEST</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -146,11 +170,40 @@ const HTML_PAGE = `<!DOCTYPE html>
       flex-direction: column;
     }
     
+    /* ===== ШАПКА С НАЗВАНИЕМ КАНАЛА ===== */
+    #header {
+      padding: 20px 16px 12px 16px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(28,28,30,1) 0%, rgba(28,28,30,0) 100%);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    
+    #header h1 {
+      font-family: 'Georgia', serif;
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #f5f5f7 0%, #0a84ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 20px rgba(10,132,255,0.2);
+    }
+    
+    #header .subtitle {
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    
     #content {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
-      padding-bottom: 80px;
+      padding: 0 16px 80px 16px;
     }
     
     #content::-webkit-scrollbar {
@@ -161,29 +214,20 @@ const HTML_PAGE = `<!DOCTYPE html>
       border-radius: 10px;
     }
     
-    .stats-bar {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 16px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 16px;
-      padding: 12px;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .stat-item {
-      text-align: center;
-    }
-    .stat-number { font-size: 20px; font-weight: bold; color: #0a84ff; }
-    .stat-label { font-size: 10px; color: rgba(255,255,255,0.4); }
-    
     .news-item {
       background: rgba(255,255,255,0.06);
       border-radius: 16px;
       padding: 14px 16px;
       margin-bottom: 10px;
       border: 1px solid rgba(255,255,255,0.05);
+      transition: 0.2s;
+      animation: fadeIn 0.3s ease;
     }
+    
+    .news-item:active {
+      background: rgba(255,255,255,0.12);
+    }
+    
     .news-item a {
       color: #0a84ff;
       text-decoration: none;
@@ -191,24 +235,60 @@ const HTML_PAGE = `<!DOCTYPE html>
       line-height: 1.4;
       display: block;
     }
+    
     .news-item .date {
       font-size: 11px;
       color: rgba(255,255,255,0.3);
       margin-top: 6px;
     }
+    
     .loading {
       text-align: center;
-      padding: 40px;
-      color: rgba(255,255,255,0.4);
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.3);
     }
+    
+    .loading .spinner {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-radius: 50%;
+      border-top-color: #0a84ff;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.3);
+    }
+    
+    .error {
+      text-align: center;
+      padding: 20px;
+      color: #ff453a;
+    }
+    
     .last-update {
       text-align: center;
       font-size: 11px;
-      color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.2);
       margin-top: 10px;
       padding-bottom: 10px;
     }
     
+    /* ===== ВКЛАДКИ ВНИЗУ ===== */
     #bottomTabs {
       position: fixed;
       bottom: 16px;
@@ -243,34 +323,30 @@ const HTML_PAGE = `<!DOCTYPE html>
       transform: scale(1.1);
     }
     
-    .error { color: #ff453a; text-align: center; padding: 20px; }
-    .empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.3); }
+    #bottomTabs button:active {
+      transform: scale(0.9);
+    }
   </style>
 </head>
 <body>
 
+  <!-- ШАПКА С НАЗВАНИЕМ КАНАЛА -->
+  <div id="header">
+    <h1>COIN DIGEST</h1>
+    <div class="subtitle">Крипто-дайджест</div>
+  </div>
+
   <div id="content">
-    <div class="stats-bar" id="stats">
-      <div class="stat-item">
-        <div class="stat-number" id="totalNews">0</div>
-        <div class="stat-label">Всего</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number" id="sentNews">0</div>
-        <div class="stat-label">Отправлено</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number" id="dupNews">0</div>
-        <div class="stat-label">Дублей</div>
-      </div>
-    </div>
-    
     <div id="newsList">
-      <div class="loading">⏳ Загрузка...</div>
+      <div class="loading">
+        <div class="spinner"></div>
+        <div>Загрузка новостей...</div>
+      </div>
     </div>
     <div class="last-update" id="lastUpdate"></div>
   </div>
 
+  <!-- ВКЛАДКИ ВНИЗУ -->
   <div id="bottomTabs">
     <button class="active" data-tab="all">📰</button>
     <button data-tab="main">🔥</button>
@@ -288,17 +364,14 @@ const HTML_PAGE = `<!DOCTYPE html>
         const data = await response.json();
         newsData = data.news || [];
         
-        document.getElementById('totalNews').textContent = data.stats.total || 0;
-        document.getElementById('sentNews').textContent = data.stats.sent || 0;
-        document.getElementById('dupNews').textContent = data.stats.duplicates || 0;
-        
         if (data.stats.lastUpdate) {
           document.getElementById('lastUpdate').textContent = '🕐 ' + new Date(data.stats.lastUpdate).toLocaleString();
         }
         
         renderNews(currentTab);
       } catch(e) {
-        document.getElementById('newsList').innerHTML = '<div class="error">❌ Ошибка загрузки</div>';
+        document.getElementById('newsList').innerHTML = '<div class="error">❌ Ошибка загрузки новостей</div>';
+        console.error(e);
       }
     }
     
@@ -311,7 +384,12 @@ const HTML_PAGE = `<!DOCTYPE html>
       else if (tab === 'exclusive') filtered = newsData.filter(n => n.category === 'Эксклюзив');
       
       if (filtered.length === 0) {
-        list.innerHTML = '<div class="empty">📭 Новостей нет</div>';
+        list.innerHTML = `
+          <div class="empty">
+            <div style="font-size: 48px; margin-bottom: 16px;">📭</div>
+            <div>Новостей в этой категории пока нет</div>
+          </div>
+        `;
         return;
       }
       
@@ -326,6 +404,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       }).join('');
     }
     
+    // Переключение вкладок
     document.querySelectorAll('#bottomTabs button').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#bottomTabs button').forEach(b => b.classList.remove('active'));
@@ -335,7 +414,10 @@ const HTML_PAGE = `<!DOCTYPE html>
       });
     });
     
+    // Загружаем при старте
     loadNews();
+    
+    // Автообновление каждые 60 секунд
     setInterval(loadNews, 60000);
   </script>
 </body>
@@ -347,7 +429,7 @@ const ADMIN_PAGE = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Админ панель</title>
+  <title>Админ панель - COIN DIGEST</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -358,7 +440,15 @@ const ADMIN_PAGE = `<!DOCTYPE html>
       max-width: 800px;
       margin: 0 auto;
     }
-    h1 { font-size: 28px; margin-bottom: 20px; color: #0a84ff; }
+    h1 { 
+      font-size: 28px; 
+      margin-bottom: 8px; 
+      background: linear-gradient(135deg, #f5f5f7 0%, #0a84ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .sub { color: rgba(255,255,255,0.3); font-size: 13px; margin-bottom: 24px; }
     .card {
       background: rgba(255,255,255,0.06);
       border-radius: 16px;
@@ -366,20 +456,20 @@ const ADMIN_PAGE = `<!DOCTYPE html>
       margin-bottom: 16px;
       border: 1px solid rgba(255,255,255,0.05);
     }
-    .card h2 { font-size: 18px; margin-bottom: 12px; color: rgba(255,255,255,0.7); }
+    .card h2 { font-size: 16px; margin-bottom: 12px; color: rgba(255,255,255,0.6); }
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 12px;
     }
     .stat-box {
       background: rgba(255,255,255,0.05);
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       text-align: center;
     }
-    .stat-box .num { font-size: 32px; font-weight: bold; color: #0a84ff; }
-    .stat-box .label { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    .stat-box .num { font-size: 28px; font-weight: bold; color: #0a84ff; }
+    .stat-box .label { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 4px; }
     .news-item {
       background: rgba(255,255,255,0.04);
       border-radius: 10px;
@@ -399,13 +489,16 @@ const ADMIN_PAGE = `<!DOCTYPE html>
       font-weight: 600;
       cursor: pointer;
       width: 100%;
+      transition: 0.2s;
     }
     .btn:active { transform: scale(0.97); }
     .btn:disabled { opacity: 0.5; }
+    .update-time { font-size: 12px; color: rgba(255,255,255,0.25); margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h1>🔐 Админ панель</h1>
+  <h1>🔐 COIN DIGEST</h1>
+  <div class="sub">Админ панель</div>
   
   <div class="card">
     <h2>📊 Статистика</h2>
@@ -415,12 +508,12 @@ const ADMIN_PAGE = `<!DOCTYPE html>
       <div class="stat-box"><div class="num" id="aDup">0</div><div class="label">Дублей</div></div>
       <div class="stat-box"><div class="num" id="aCache">0</div><div class="label">В кеше</div></div>
     </div>
-    <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.3);" id="aUpdate"></div>
+    <div class="update-time" id="aUpdate"></div>
   </div>
   
-  <button class="btn" onclick="runFetch()">🔄 Собрать новости сейчас</button>
+  <button class="btn" onclick="runFetch()" id="fetchBtn">🔄 Собрать новости</button>
   
-  <div class="card">
+  <div class="card" style="margin-top: 16px;">
     <h2>📰 Последние 20 новостей</h2>
     <div id="adminNews"></div>
   </div>
@@ -454,7 +547,7 @@ const ADMIN_PAGE = `<!DOCTYPE html>
     }
     
     async function runFetch() {
-      const btn = document.querySelector('.btn');
+      const btn = document.getElementById('fetchBtn');
       btn.textContent = '⏳ Сбор...';
       btn.disabled = true;
       try {
@@ -463,9 +556,9 @@ const ADMIN_PAGE = `<!DOCTYPE html>
         alert('✅ Добавлено: ' + (data.newCount || 0) + ' новостей');
         loadAdmin();
       } catch(e) {
-        alert('❌ Ошибка');
+        alert('❌ Ошибка: ' + e.message);
       }
-      btn.textContent = '🔄 Собрать новости сейчас';
+      btn.textContent = '🔄 Собрать новости';
       btn.disabled = false;
     }
     
