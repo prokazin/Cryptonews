@@ -25,27 +25,20 @@ const SOURCES = {
 // ========== ХРАНИЛИЩЕ ==========
 const newsStore = new Map();
 let stats = { total: 0, sent: 0, duplicates: 0, lastUpdate: null };
-
-// ========== КЕШ ДЛЯ ПЕРЕВОДА ==========
 const translateCache = new Map();
 
-// ========== ПЕРЕВОД НА РУССКИЙ (с кешем) ==========
+// ========== ПЕРЕВОД ==========
 async function translateToRussian(text) {
-  // Проверяем кеш
   if (translateCache.has(text)) {
     return translateCache.get(text);
   }
-  
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ru`;
     const response = await fetch(url);
     const data = await response.json();
-    
     if (data.responseData && data.responseData.translatedText) {
       const translated = data.responseData.translatedText;
-      // Сохраняем в кеш
       translateCache.set(text, translated);
-      // Ограничиваем кеш до 1000 записей
       if (translateCache.size > 1000) {
         const firstKey = translateCache.keys().next().value;
         translateCache.delete(firstKey);
@@ -66,23 +59,18 @@ async function fetchRSS(url) {
       headers: { 'User-Agent': 'Mozilla/5.0' }
     });
     const text = await response.text();
-    
     const items = [];
     const itemMatches = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
-    
     for (const item of itemMatches) {
       const title = item.match(/<title>(.*?)<\/title>/)?.[1]?.trim() || '';
       const link = item.match(/<link>(.*?)<\/link>/)?.[1]?.trim() || '';
       const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() || '';
       const guid = item.match(/<guid>(.*?)<\/guid>/)?.[1]?.trim() || link;
-      
       if (title && link) {
-        // Переводим только если новость новая (для экономии лимитов)
         if (!newsStore.has(guid)) {
           const translatedTitle = await translateToRussian(title);
           items.push({ title: translatedTitle, link, pubDate, id: guid });
         } else {
-          // Если новость уже есть - берем сохраненный перевод
           const existing = newsStore.get(guid);
           items.push({ title: existing.title, link, pubDate, id: guid });
         }
@@ -99,7 +87,6 @@ async function fetchRSS(url) {
 async function sendToTelegram(message, category = '') {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
   const text = category ? `📰 [${category}] ${message}` : message;
-  
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -122,13 +109,11 @@ async function sendToTelegram(message, category = '') {
 async function fetchNews() {
   let newCount = 0;
   const results = [];
-  
   const allSources = [
     ...SOURCES.main.map(s => ({ url: s, category: 'Основные' })),
     ...SOURCES.altcoins.map(s => ({ url: s, category: 'Альткоины' })),
     ...SOURCES.exclusive.map(s => ({ url: s, category: 'Эксклюзив' }))
   ];
-  
   for (const { url, category } of allSources) {
     const items = await fetchRSS(url);
     for (const item of items) {
@@ -137,7 +122,6 @@ async function fetchNews() {
         stats.total++;
         stats.sent++;
         newCount++;
-        
         const message = `<b>${item.title}</b>\n\n${item.link}`;
         await sendToTelegram(message, category);
         results.push({ title: item.title, category });
@@ -146,12 +130,11 @@ async function fetchNews() {
       }
     }
   }
-  
   stats.lastUpdate = new Date().toISOString();
   return { newCount, total: stats.total, results: results.slice(0, 10) };
 }
 
-// ========== HTML СТРАНИЦА ==========
+// ========== HTML ==========
 const HTML_PAGE = `<!DOCTYPE html>
 <html>
 <head>
@@ -169,8 +152,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       display: flex;
       flex-direction: column;
     }
-    
-    /* ===== ШАПКА С НАЗВАНИЕМ КАНАЛА ===== */
     #header {
       padding: 20px 16px 12px 16px;
       text-align: center;
@@ -179,7 +160,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       top: 0;
       z-index: 50;
     }
-    
     #header h1 {
       font-family: 'Georgia', serif;
       font-size: 28px;
@@ -191,7 +171,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       letter-spacing: 2px;
       text-shadow: 0 2px 20px rgba(10,132,255,0.2);
     }
-    
     #header .subtitle {
       font-size: 11px;
       color: rgba(255,255,255,0.25);
@@ -199,13 +178,11 @@ const HTML_PAGE = `<!DOCTYPE html>
       text-transform: uppercase;
       margin-top: 4px;
     }
-    
     #content {
       flex: 1;
       overflow-y: auto;
       padding: 0 16px 80px 16px;
     }
-    
     #content::-webkit-scrollbar {
       width: 4px;
     }
@@ -213,7 +190,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       background: rgba(255,255,255,0.3);
       border-radius: 10px;
     }
-    
     .news-item {
       background: rgba(255,255,255,0.06);
       border-radius: 16px;
@@ -223,11 +199,9 @@ const HTML_PAGE = `<!DOCTYPE html>
       transition: 0.2s;
       animation: fadeIn 0.3s ease;
     }
-    
     .news-item:active {
       background: rgba(255,255,255,0.12);
     }
-    
     .news-item a {
       color: #0a84ff;
       text-decoration: none;
@@ -235,19 +209,16 @@ const HTML_PAGE = `<!DOCTYPE html>
       line-height: 1.4;
       display: block;
     }
-    
     .news-item .date {
       font-size: 11px;
       color: rgba(255,255,255,0.3);
       margin-top: 6px;
     }
-    
     .loading {
       text-align: center;
       padding: 60px 20px;
       color: rgba(255,255,255,0.3);
     }
-    
     .loading .spinner {
       display: inline-block;
       width: 30px;
@@ -258,28 +229,23 @@ const HTML_PAGE = `<!DOCTYPE html>
       animation: spin 0.8s linear infinite;
       margin-bottom: 12px;
     }
-    
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
-    
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    
     .empty {
       text-align: center;
       padding: 60px 20px;
       color: rgba(255,255,255,0.3);
     }
-    
     .error {
       text-align: center;
       padding: 20px;
       color: #ff453a;
     }
-    
     .last-update {
       text-align: center;
       font-size: 11px;
@@ -287,8 +253,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       margin-top: 10px;
       padding-bottom: 10px;
     }
-    
-    /* ===== ВКЛАДКИ ВНИЗУ ===== */
     #bottomTabs {
       position: fixed;
       bottom: 16px;
@@ -305,7 +269,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
       z-index: 100;
     }
-    
     #bottomTabs button {
       background: transparent;
       border: none;
@@ -317,25 +280,20 @@ const HTML_PAGE = `<!DOCTYPE html>
       min-width: 32px;
       text-align: center;
     }
-    
     #bottomTabs button.active {
       color: #0a84ff;
       transform: scale(1.1);
     }
-    
     #bottomTabs button:active {
       transform: scale(0.9);
     }
   </style>
 </head>
 <body>
-
-  <!-- ШАПКА С НАЗВАНИЕМ КАНАЛА -->
   <div id="header">
     <h1>COIN DIGEST</h1>
     <div class="subtitle">Крипто-дайджест</div>
   </div>
-
   <div id="content">
     <div id="newsList">
       <div class="loading">
@@ -345,79 +303,53 @@ const HTML_PAGE = `<!DOCTYPE html>
     </div>
     <div class="last-update" id="lastUpdate"></div>
   </div>
-
-  <!-- ВКЛАДКИ ВНИЗУ -->
   <div id="bottomTabs">
     <button class="active" data-tab="all">📰</button>
     <button data-tab="main">🔥</button>
     <button data-tab="alt">🪙</button>
     <button data-tab="exclusive">🔒</button>
   </div>
-
   <script>
     let currentTab = 'all';
     let newsData = [];
-    
     async function loadNews() {
       try {
         const response = await fetch('/api/news');
         const data = await response.json();
         newsData = data.news || [];
-        
         if (data.stats.lastUpdate) {
           document.getElementById('lastUpdate').textContent = '🕐 ' + new Date(data.stats.lastUpdate).toLocaleString();
         }
-        
         renderNews(currentTab);
       } catch(e) {
         document.getElementById('newsList').innerHTML = '<div class="error">❌ Ошибка загрузки новостей</div>';
         console.error(e);
       }
     }
-    
     function renderNews(tab) {
       const list = document.getElementById('newsList');
       let filtered = newsData;
-      
       if (tab === 'main') filtered = newsData.filter(n => n.category === 'Основные');
       else if (tab === 'alt') filtered = newsData.filter(n => n.category === 'Альткоины');
       else if (tab === 'exclusive') filtered = newsData.filter(n => n.category === 'Эксклюзив');
-      
       if (filtered.length === 0) {
-        list.innerHTML = `
-          <div class="empty">
-            <div style="font-size: 48px; margin-bottom: 16px;">📭</div>
-            <div>Новостей в этой категории пока нет</div>
-          </div>
-        `;
+        list.innerHTML = '<div class="empty"><div style="font-size: 48px; margin-bottom: 16px;">📭</div><div>Новостей в этой категории пока нет</div></div>';
         return;
       }
-      
       list.innerHTML = filtered.map(item => {
         const date = item.pubDate ? new Date(item.pubDate).toLocaleDateString('ru-RU') : 'Сегодня';
-        return \`
-          <div class="news-item">
-            <a href="\${item.link}" target="_blank">\${item.title}</a>
-            <div class="date">📅 \${date}</div>
-          </div>
-        \`;
+        return '<div class="news-item"><a href="' + item.link + '" target="_blank">' + item.title + '</a><div class="date">📅 ' + date + '</div></div>';
       }).join('');
     }
-    
-    // Переключение вкладок
     document.querySelectorAll('#bottomTabs button').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', function() {
         document.querySelectorAll('#bottomTabs button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentTab = btn.dataset.tab;
+        this.classList.add('active');
+        currentTab = this.dataset.tab;
         renderNews(currentTab);
       });
     });
-    
-    // Загружаем при старте
     loadNews();
-    
-    // Автообновление каждые 60 секунд
     setInterval(loadNews, 60000);
   </script>
 </body>
@@ -499,7 +431,6 @@ const ADMIN_PAGE = `<!DOCTYPE html>
 <body>
   <h1>🔐 COIN DIGEST</h1>
   <div class="sub">Админ панель</div>
-  
   <div class="card">
     <h2>📊 Статистика</h2>
     <div class="stat-grid" id="adminStats">
@@ -510,34 +441,26 @@ const ADMIN_PAGE = `<!DOCTYPE html>
     </div>
     <div class="update-time" id="aUpdate"></div>
   </div>
-  
   <button class="btn" onclick="runFetch()" id="fetchBtn">🔄 Собрать новости</button>
-  
   <div class="card" style="margin-top: 16px;">
     <h2>📰 Последние 20 новостей</h2>
     <div id="adminNews"></div>
   </div>
-  
   <script>
     async function loadAdmin() {
       try {
         const res = await fetch('/api/admin-data');
         const data = await res.json();
-        
         document.getElementById('aTotal').textContent = data.stats.total || 0;
         document.getElementById('aSent').textContent = data.stats.sent || 0;
         document.getElementById('aDup').textContent = data.stats.duplicates || 0;
         document.getElementById('aCache').textContent = data.cacheSize || 0;
         document.getElementById('aUpdate').textContent = '🕐 Обновлено: ' + new Date().toLocaleString();
-        
         const newsDiv = document.getElementById('adminNews');
         if (data.news && data.news.length > 0) {
-          newsDiv.innerHTML = data.news.map(item => \`
-            <div class="news-item">
-              <div class="title">\${item.title}</div>
-              <div class="meta">\${item.category || 'Без категории'} | \${item.pubDate ? new Date(item.pubDate).toLocaleDateString('ru-RU') : 'Сегодня'}</div>
-            </div>
-          \`).join('');
+          newsDiv.innerHTML = data.news.map(item => {
+            return '<div class="news-item"><div class="title">' + item.title + '</div><div class="meta">' + (item.category || 'Без категории') + ' | ' + (item.pubDate ? new Date(item.pubDate).toLocaleDateString('ru-RU') : 'Сегодня') + '</div></div>';
+          }).join('');
         } else {
           newsDiv.innerHTML = '<div style="color: rgba(255,255,255,0.3);">Новостей пока нет</div>';
         }
@@ -545,7 +468,6 @@ const ADMIN_PAGE = `<!DOCTYPE html>
         document.getElementById('adminNews').innerHTML = '<div class="error">Ошибка загрузки</div>';
       }
     }
-    
     async function runFetch() {
       const btn = document.getElementById('fetchBtn');
       btn.textContent = '⏳ Сбор...';
@@ -561,7 +483,6 @@ const ADMIN_PAGE = `<!DOCTYPE html>
       btn.textContent = '🔄 Собрать новости';
       btn.disabled = false;
     }
-    
     loadAdmin();
     setInterval(loadAdmin, 30000);
   </script>
@@ -574,7 +495,6 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     
-    // Главная страница
     if (path === '/' || path === '') {
       return new Response(HTML_PAGE, {
         headers: { 
@@ -584,7 +504,6 @@ export default {
       });
     }
     
-    // Админ панель (скрытая ссылка)
     if (path === '/admin-panel-xyz123') {
       return new Response(ADMIN_PAGE, {
         headers: { 
@@ -594,7 +513,6 @@ export default {
       });
     }
     
-    // API: Данные для админки
     if (path === '/api/admin-data') {
       const allNews = Array.from(newsStore.values());
       const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
@@ -605,7 +523,6 @@ export default {
       });
     }
     
-    // API: Получить новости
     if (path === '/api/news') {
       const allNews = Array.from(newsStore.values());
       const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
@@ -615,7 +532,6 @@ export default {
       });
     }
     
-    // API: Сбор новостей
     if (path === '/api/fetch') {
       const result = await fetchNews();
       return Response.json({
@@ -624,7 +540,6 @@ export default {
       });
     }
     
-    // API: Статистика
     if (path === '/api/stats') {
       return Response.json({
         stats: stats,
