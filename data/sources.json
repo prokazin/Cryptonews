@@ -1,6 +1,6 @@
 {
   "main": [
-    "https://cointelegraph.com/rss",
+    "https://cointelegraph.com/feed",
     "https://decrypt.co/feed",
     "https://bitcoinmagazine.com/feed",
     "https://coindesk.com/feed",
@@ -12,7 +12,7 @@
     "https://altcoinbuzz.io/feed"
   ],
   "exclusive": [
-    "https://example-exclusive1.com/rss",
-    "https://example-exclusive2.com/rss"
+    "https://www.newsbtc.com/feed",
+    "https://www.crypto-news.net/feed"
   ]
 }
