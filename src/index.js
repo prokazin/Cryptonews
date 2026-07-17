@@ -1,6 +1,6 @@
 // ========== КОНФИГУРАЦИЯ ==========
-const BOT_TOKEN = 'const BOT_TOKEN = '8422981212:AAFqUt5juqdC_l64q7FACOBw-mFL4f0hN8Y';';
-const CHANNEL_ID = '@your_channel_username'; // ЗАМЕНИТЕ НА ВАШ
+const BOT_TOKEN = '8422981212:AAFx0HvRRFZy-JlTno_NXzUzpm2rJ-KWrBY';
+const CHANNEL_ID = -1004345602790; // ВАШ CHAT_ID
 
 // ========== ИСТОЧНИКИ НОВОСТЕЙ ==========
 const SOURCES = {
@@ -26,7 +26,7 @@ const SOURCES = {
 const newsStore = new Map();
 let stats = { total: 0, sent: 0, duplicates: 0, lastUpdate: null };
 
-// ========== ПЕРЕВОД НА РУССКИЙ (через MyMemory API) ==========
+// ========== ПЕРЕВОД НА РУССКИЙ ==========
 async function translateToRussian(text) {
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ru`;
@@ -60,7 +60,6 @@ async function fetchRSS(url) {
       const guid = item.match(/<guid>(.*?)<\/guid>/)?.[1]?.trim() || link;
       
       if (title && link) {
-        // Переводим заголовок на русский
         const translatedTitle = await translateToRussian(title);
         items.push({ title: translatedTitle, link, pubDate, id: guid });
       }
@@ -210,7 +209,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       padding-bottom: 10px;
     }
     
-    /* ===== ВКЛАДКИ ВНИЗУ ===== */
     #bottomTabs {
       position: fixed;
       bottom: 16px;
@@ -226,8 +224,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       border: 1px solid rgba(255,255,255,0.12);
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
       z-index: 100;
-      width: auto;
-      max-width: 90%;
     }
     
     #bottomTabs button {
@@ -245,10 +241,6 @@ const HTML_PAGE = `<!DOCTYPE html>
     #bottomTabs button.active {
       color: #0a84ff;
       transform: scale(1.1);
-    }
-    
-    #bottomTabs button:active {
-      transform: scale(0.9);
     }
     
     .error { color: #ff453a; text-align: center; padding: 20px; }
@@ -279,7 +271,6 @@ const HTML_PAGE = `<!DOCTYPE html>
     <div class="last-update" id="lastUpdate"></div>
   </div>
 
-  <!-- ВКЛАДКИ ВНИЗУ (только иконки) -->
   <div id="bottomTabs">
     <button class="active" data-tab="all">📰</button>
     <button data-tab="main">🔥</button>
@@ -335,7 +326,6 @@ const HTML_PAGE = `<!DOCTYPE html>
       }).join('');
     }
     
-    // Переключение вкладок (только иконки)
     document.querySelectorAll('#bottomTabs button').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#bottomTabs button').forEach(b => b.classList.remove('active'));
@@ -345,14 +335,13 @@ const HTML_PAGE = `<!DOCTYPE html>
       });
     });
     
-    // Автообновление каждые 60 секунд
     loadNews();
     setInterval(loadNews, 60000);
   </script>
 </body>
 </html>`;
 
-// ========== АДМИН ПАНЕЛЬ (скрытая ссылка) ==========
+// ========== АДМИН ПАНЕЛЬ ==========
 const ADMIN_PAGE = `<!DOCTYPE html>
 <html>
 <head>
@@ -413,7 +402,6 @@ const ADMIN_PAGE = `<!DOCTYPE html>
     }
     .btn:active { transform: scale(0.97); }
     .btn:disabled { opacity: 0.5; }
-    .refresh-btn { margin-bottom: 16px; }
   </style>
 </head>
 <body>
@@ -422,7 +410,7 @@ const ADMIN_PAGE = `<!DOCTYPE html>
   <div class="card">
     <h2>📊 Статистика</h2>
     <div class="stat-grid" id="adminStats">
-      <div class="stat-box"><div class="num" id="aTotal">0</div><div class="label">Всего новостей</div></div>
+      <div class="stat-box"><div class="num" id="aTotal">0</div><div class="label">Всего</div></div>
       <div class="stat-box"><div class="num" id="aSent">0</div><div class="label">Отправлено</div></div>
       <div class="stat-box"><div class="num" id="aDup">0</div><div class="label">Дублей</div></div>
       <div class="stat-box"><div class="num" id="aCache">0</div><div class="label">В кеше</div></div>
@@ -430,7 +418,7 @@ const ADMIN_PAGE = `<!DOCTYPE html>
     <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.3);" id="aUpdate"></div>
   </div>
   
-  <button class="btn refresh-btn" onclick="runFetch()">🔄 Собрать новости сейчас</button>
+  <button class="btn" onclick="runFetch()">🔄 Собрать новости сейчас</button>
   
   <div class="card">
     <h2>📰 Последние 20 новостей</h2>
@@ -466,7 +454,7 @@ const ADMIN_PAGE = `<!DOCTYPE html>
     }
     
     async function runFetch() {
-      const btn = document.querySelector('.refresh-btn');
+      const btn = document.querySelector('.btn');
       btn.textContent = '⏳ Сбор...';
       btn.disabled = true;
       try {
@@ -493,7 +481,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     
-    // ===== ГЛАВНАЯ СТРАНИЦА =====
+    // Главная страница
     if (path === '/' || path === '') {
       return new Response(HTML_PAGE, {
         headers: { 
@@ -503,8 +491,7 @@ export default {
       });
     }
     
-    // ===== АДМИН ПАНЕЛЬ (скрытая ссылка) =====
-    // ДОСТУП ТОЛЬКО ПО ССЫЛКЕ: /admin-panel-xyz123
+    // Админ панель (скрытая ссылка)
     if (path === '/admin-panel-xyz123') {
       return new Response(ADMIN_PAGE, {
         headers: { 
@@ -514,7 +501,7 @@ export default {
       });
     }
     
-    // ===== API: Данные для админки =====
+    // API: Данные для админки
     if (path === '/api/admin-data') {
       const allNews = Array.from(newsStore.values());
       const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
@@ -525,7 +512,7 @@ export default {
       });
     }
     
-    // ===== API: Получить новости =====
+    // API: Получить новости
     if (path === '/api/news') {
       const allNews = Array.from(newsStore.values());
       const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
@@ -535,7 +522,7 @@ export default {
       });
     }
     
-    // ===== API: Сбор новостей =====
+    // API: Сбор новостей
     if (path === '/api/fetch') {
       const result = await fetchNews();
       return Response.json({
@@ -544,7 +531,7 @@ export default {
       });
     }
     
-    // ===== API: Статистика =====
+    // API: Статистика
     if (path === '/api/stats') {
       return Response.json({
         stats: stats,
