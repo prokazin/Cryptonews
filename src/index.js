@@ -1,5 +1,5 @@
 // ========== КОНФИГУРАЦИЯ ==========
-const BOT_TOKEN = '8422981212:AAFqUt5juqdC_l64q7FACOBw-mFL4f0hN8Y';
+const BOT_TOKEN = 'const BOT_TOKEN = '8422981212:AAFqUt5juqdC_l64q7FACOBw-mFL4f0hN8Y';';
 const CHANNEL_ID = '@your_channel_username'; // ЗАМЕНИТЕ НА ВАШ
 
 // ========== ИСТОЧНИКИ НОВОСТЕЙ ==========
