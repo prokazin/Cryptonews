@@ -1,0 +1,10 @@
+name = "cryptonews"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+BOT_TOKEN = "8422981212:AAFqUt5juqdC_l64q7FACOBw-mFL4f0hN8Y"
+CHANNEL_ID = "@your_channel_username"
+
+[triggers]
+crons = ["*/15 * * * *"]
