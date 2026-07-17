@@ -1,6 +1,6 @@
 // ========== КОНФИГУРАЦИЯ ==========
 const BOT_TOKEN = '8422981212:AAFqUt5juqdC_l64q7FACOBw-mFL4f0hN8Y';
-const CHANNEL_ID = '@your_channel_username'; // ЗАМЕНИТЕ ПОТОМ
+const CHANNEL_ID = '@your_channel_username'; // ЗАМЕНИТЕ НА ВАШ
 
 // ========== ИСТОЧНИКИ НОВОСТЕЙ ==========
 const SOURCES = {
@@ -26,6 +26,22 @@ const SOURCES = {
 const newsStore = new Map();
 let stats = { total: 0, sent: 0, duplicates: 0, lastUpdate: null };
 
+// ========== ПЕРЕВОД НА РУССКИЙ (через MyMemory API) ==========
+async function translateToRussian(text) {
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ru`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.responseData && data.responseData.translatedText) {
+      return data.responseData.translatedText;
+    }
+    return text;
+  } catch (error) {
+    console.error('Ошибка перевода:', error);
+    return text;
+  }
+}
+
 // ========== ПАРСИНГ RSS ==========
 async function fetchRSS(url) {
   try {
@@ -44,7 +60,9 @@ async function fetchRSS(url) {
       const guid = item.match(/<guid>(.*?)<\/guid>/)?.[1]?.trim() || link;
       
       if (title && link) {
-        items.push({ title, link, pubDate, id: guid });
+        // Переводим заголовок на русский
+        const translatedTitle = await translateToRussian(title);
+        items.push({ title: translatedTitle, link, pubDate, id: guid });
       }
     }
     return items;
@@ -123,94 +141,49 @@ const HTML_PAGE = `<!DOCTYPE html>
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #1c1c1e;
       color: #f5f5f7;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #content {
+      flex: 1;
+      overflow-y: auto;
       padding: 16px;
-      max-width: 600px;
-      margin: 0 auto;
-      min-height: 100vh;
-      padding-bottom: 100px;
+      padding-bottom: 80px;
     }
-    .header { 
-      background: rgba(255,255,255,0.08);
-      backdrop-filter: blur(40px);
-      border-radius: 20px;
-      padding: 20px;
-      margin-bottom: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
+    
+    #content::-webkit-scrollbar {
+      width: 4px;
     }
-    .header h1 { font-size: 24px; margin-bottom: 12px; }
-    .stats {
+    #content::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.3);
+      border-radius: 10px;
+    }
+    
+    .stats-bar {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 10px;
-      margin: 10px 0;
-    }
-    .stat-card {
+      margin-bottom: 16px;
       background: rgba(255,255,255,0.05);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 12px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-item {
       text-align: center;
     }
-    .stat-number { font-size: 22px; font-weight: bold; color: #0a84ff; }
-    .stat-label { font-size: 11px; color: rgba(255,255,255,0.5); }
-    .tabs {
-      display: flex;
-      gap: 8px;
-      margin: 16px 0;
-      background: rgba(120,120,128,0.2);
-      backdrop-filter: blur(30px);
-      border-radius: 30px;
-      padding: 6px;
-      border: 1px solid rgba(255,255,255,0.1);
-      position: sticky;
-      top: 10px;
-      z-index: 10;
-    }
-    .tabs button {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.4);
-      padding: 10px;
-      border-radius: 25px;
-      font-size: 18px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    .tabs button.active {
-      background: rgba(255,255,255,0.12);
-      color: white;
-    }
-    .btn {
-      background: #0a84ff;
-      color: white;
-      border: none;
-      padding: 14px 24px;
-      border-radius: 30px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      margin: 10px 0;
-    }
-    .btn:active { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.5; }
+    .stat-number { font-size: 20px; font-weight: bold; color: #0a84ff; }
+    .stat-label { font-size: 10px; color: rgba(255,255,255,0.4); }
+    
     .news-item {
       background: rgba(255,255,255,0.06);
       border-radius: 16px;
       padding: 14px 16px;
       margin-bottom: 10px;
       border: 1px solid rgba(255,255,255,0.05);
-    }
-    .news-item .category {
-      font-size: 10px;
-      color: #ff9f0a;
-      background: rgba(255,159,10,0.15);
-      padding: 2px 10px;
-      border-radius: 20px;
-      display: inline-block;
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
     .news-item a {
       color: #0a84ff;
@@ -231,45 +204,88 @@ const HTML_PAGE = `<!DOCTYPE html>
     }
     .last-update {
       text-align: center;
-      font-size: 12px;
-      color: rgba(255,255,255,0.3);
-      margin-top: 20px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      margin-top: 10px;
+      padding-bottom: 10px;
     }
+    
+    /* ===== ВКЛАДКИ ВНИЗУ ===== */
+    #bottomTabs {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 32px;
+      background: rgba(44, 44, 46, 0.85);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      padding: 10px 28px;
+      border-radius: 40px;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 100;
+      width: auto;
+      max-width: 90%;
+    }
+    
+    #bottomTabs button {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      color: rgba(255,255,255,0.4);
+      padding: 4px 0;
+      cursor: pointer;
+      transition: 0.2s;
+      min-width: 32px;
+      text-align: center;
+    }
+    
+    #bottomTabs button.active {
+      color: #0a84ff;
+      transform: scale(1.1);
+    }
+    
+    #bottomTabs button:active {
+      transform: scale(0.9);
+    }
+    
     .error { color: #ff453a; text-align: center; padding: 20px; }
+    .empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.3); }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>📰 Крипто Новости</h1>
-    <div class="stats" id="stats">
-      <div class="stat-card">
+
+  <div id="content">
+    <div class="stats-bar" id="stats">
+      <div class="stat-item">
         <div class="stat-number" id="totalNews">0</div>
         <div class="stat-label">Всего</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-item">
         <div class="stat-number" id="sentNews">0</div>
         <div class="stat-label">Отправлено</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-item">
         <div class="stat-number" id="dupNews">0</div>
         <div class="stat-label">Дублей</div>
       </div>
     </div>
+    
+    <div id="newsList">
+      <div class="loading">⏳ Загрузка...</div>
+    </div>
+    <div class="last-update" id="lastUpdate"></div>
   </div>
-  
-  <div class="tabs">
-    <button class="active" data-tab="all">📰 Все</button>
-    <button data-tab="main">🔥 Главные</button>
-    <button data-tab="alt">🪙 Альты</button>
-    <button data-tab="exclusive">🔒 Эксклюзив</button>
+
+  <!-- ВКЛАДКИ ВНИЗУ (только иконки) -->
+  <div id="bottomTabs">
+    <button class="active" data-tab="all">📰</button>
+    <button data-tab="main">🔥</button>
+    <button data-tab="alt">🪙</button>
+    <button data-tab="exclusive">🔒</button>
   </div>
-  
-  <button class="btn" id="refreshBtn">🔄 Обновить новости</button>
-  
-  <div id="newsList">
-    <div class="loading">⏳ Загрузка новостей...</div>
-  </div>
-  <div class="last-update" id="lastUpdate"></div>
 
   <script>
     let currentTab = 'all';
@@ -286,13 +302,12 @@ const HTML_PAGE = `<!DOCTYPE html>
         document.getElementById('dupNews').textContent = data.stats.duplicates || 0;
         
         if (data.stats.lastUpdate) {
-          document.getElementById('lastUpdate').textContent = '🕐 Последнее обновление: ' + new Date(data.stats.lastUpdate).toLocaleString();
+          document.getElementById('lastUpdate').textContent = '🕐 ' + new Date(data.stats.lastUpdate).toLocaleString();
         }
         
         renderNews(currentTab);
       } catch(e) {
-        document.getElementById('newsList').innerHTML = '<div class="error">❌ Ошибка загрузки. Проверьте интернет.</div>';
-        console.error(e);
+        document.getElementById('newsList').innerHTML = '<div class="error">❌ Ошибка загрузки</div>';
       }
     }
     
@@ -305,17 +320,14 @@ const HTML_PAGE = `<!DOCTYPE html>
       else if (tab === 'exclusive') filtered = newsData.filter(n => n.category === 'Эксклюзив');
       
       if (filtered.length === 0) {
-        list.innerHTML = '<div class="loading">📭 Новостей пока нет</div>';
+        list.innerHTML = '<div class="empty">📭 Новостей нет</div>';
         return;
       }
       
       list.innerHTML = filtered.map(item => {
-        const date = item.pubDate ? new Date(item.pubDate).toLocaleDateString() : 'Сегодня';
-        const category = item.category || 'Новости';
-        const emoji = category === 'Основные' ? '📰' : category === 'Альткоины' ? '🪙' : '🔒';
+        const date = item.pubDate ? new Date(item.pubDate).toLocaleDateString('ru-RU') : 'Сегодня';
         return \`
           <div class="news-item">
-            <div class="category">\${emoji} \${category}</div>
             <a href="\${item.link}" target="_blank">\${item.title}</a>
             <div class="date">📅 \${date}</div>
           </div>
@@ -323,42 +335,154 @@ const HTML_PAGE = `<!DOCTYPE html>
       }).join('');
     }
     
-    async function refreshNews() {
-      const btn = document.getElementById('refreshBtn');
-      btn.textContent = '⏳ Обновление...';
-      btn.disabled = true;
-      
-      try {
-        const response = await fetch('/api/fetch', { method: 'POST' });
-        const data = await response.json();
-        if (data.newCount > 0) {
-          alert('✅ Добавлено ' + data.newCount + ' новых новостей!');
-        } else {
-          alert('📭 Новых новостей нет');
-        }
-        await loadNews();
-      } catch(e) {
-        alert('❌ Ошибка обновления');
-        console.error(e);
-      }
-      
-      btn.textContent = '🔄 Обновить новости';
-      btn.disabled = false;
-    }
-    
-    document.querySelectorAll('.tabs button').forEach(btn => {
+    // Переключение вкладок (только иконки)
+    document.querySelectorAll('#bottomTabs button').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#bottomTabs button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTab = btn.dataset.tab;
         renderNews(currentTab);
       });
     });
     
-    document.getElementById('refreshBtn').addEventListener('click', refreshNews);
-    
+    // Автообновление каждые 60 секунд
     loadNews();
     setInterval(loadNews, 60000);
+  </script>
+</body>
+</html>`;
+
+// ========== АДМИН ПАНЕЛЬ (скрытая ссылка) ==========
+const ADMIN_PAGE = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ панель</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1c1c1e;
+      color: #f5f5f7;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin-bottom: 20px; color: #0a84ff; }
+    .card {
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .card h2 { font-size: 18px; margin-bottom: 12px; color: rgba(255,255,255,0.7); }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .stat-box {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-box .num { font-size: 32px; font-weight: bold; color: #0a84ff; }
+    .stat-box .label { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    .news-item {
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-left: 3px solid #0a84ff;
+    }
+    .news-item .title { font-size: 14px; }
+    .news-item .meta { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+    .btn {
+      background: #0a84ff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; }
+    .refresh-btn { margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <h1>🔐 Админ панель</h1>
+  
+  <div class="card">
+    <h2>📊 Статистика</h2>
+    <div class="stat-grid" id="adminStats">
+      <div class="stat-box"><div class="num" id="aTotal">0</div><div class="label">Всего новостей</div></div>
+      <div class="stat-box"><div class="num" id="aSent">0</div><div class="label">Отправлено</div></div>
+      <div class="stat-box"><div class="num" id="aDup">0</div><div class="label">Дублей</div></div>
+      <div class="stat-box"><div class="num" id="aCache">0</div><div class="label">В кеше</div></div>
+    </div>
+    <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.3);" id="aUpdate"></div>
+  </div>
+  
+  <button class="btn refresh-btn" onclick="runFetch()">🔄 Собрать новости сейчас</button>
+  
+  <div class="card">
+    <h2>📰 Последние 20 новостей</h2>
+    <div id="adminNews"></div>
+  </div>
+  
+  <script>
+    async function loadAdmin() {
+      try {
+        const res = await fetch('/api/admin-data');
+        const data = await res.json();
+        
+        document.getElementById('aTotal').textContent = data.stats.total || 0;
+        document.getElementById('aSent').textContent = data.stats.sent || 0;
+        document.getElementById('aDup').textContent = data.stats.duplicates || 0;
+        document.getElementById('aCache').textContent = data.cacheSize || 0;
+        document.getElementById('aUpdate').textContent = '🕐 Обновлено: ' + new Date().toLocaleString();
+        
+        const newsDiv = document.getElementById('adminNews');
+        if (data.news && data.news.length > 0) {
+          newsDiv.innerHTML = data.news.map(item => \`
+            <div class="news-item">
+              <div class="title">\${item.title}</div>
+              <div class="meta">\${item.category || 'Без категории'} | \${item.pubDate ? new Date(item.pubDate).toLocaleDateString('ru-RU') : 'Сегодня'}</div>
+            </div>
+          \`).join('');
+        } else {
+          newsDiv.innerHTML = '<div style="color: rgba(255,255,255,0.3);">Новостей пока нет</div>';
+        }
+      } catch(e) {
+        document.getElementById('adminNews').innerHTML = '<div class="error">Ошибка загрузки</div>';
+      }
+    }
+    
+    async function runFetch() {
+      const btn = document.querySelector('.refresh-btn');
+      btn.textContent = '⏳ Сбор...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/fetch', { method: 'POST' });
+        const data = await res.json();
+        alert('✅ Добавлено: ' + (data.newCount || 0) + ' новостей');
+        loadAdmin();
+      } catch(e) {
+        alert('❌ Ошибка');
+      }
+      btn.textContent = '🔄 Собрать новости сейчас';
+      btn.disabled = false;
+    }
+    
+    loadAdmin();
+    setInterval(loadAdmin, 30000);
   </script>
 </body>
 </html>`;
@@ -369,7 +493,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     
-    // Главная страница
+    // ===== ГЛАВНАЯ СТРАНИЦА =====
     if (path === '/' || path === '') {
       return new Response(HTML_PAGE, {
         headers: { 
@@ -379,28 +503,48 @@ export default {
       });
     }
     
-    // API: Получить новости
+    // ===== АДМИН ПАНЕЛЬ (скрытая ссылка) =====
+    // ДОСТУП ТОЛЬКО ПО ССЫЛКЕ: /admin-panel-xyz123
+    if (path === '/admin-panel-xyz123') {
+      return new Response(ADMIN_PAGE, {
+        headers: { 
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache'
+        }
+      });
+    }
+    
+    // ===== API: Данные для админки =====
+    if (path === '/api/admin-data') {
+      const allNews = Array.from(newsStore.values());
+      const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      return Response.json({
+        stats: stats,
+        cacheSize: newsStore.size,
+        news: sorted.slice(0, 20)
+      });
+    }
+    
+    // ===== API: Получить новости =====
     if (path === '/api/news') {
       const allNews = Array.from(newsStore.values());
       const sorted = allNews.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
-      
       return Response.json({
         stats: stats,
         news: sorted.slice(0, 100)
       });
     }
     
-    // API: Запустить сбор новостей
+    // ===== API: Сбор новостей =====
     if (path === '/api/fetch') {
       const result = await fetchNews();
       return Response.json({
         success: true,
-        ...result,
-        message: `Добавлено ${result.newCount} новостей`
+        ...result
       });
     }
     
-    // API: Статистика
+    // ===== API: Статистика =====
     if (path === '/api/stats') {
       return Response.json({
         stats: stats,
