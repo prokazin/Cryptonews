@@ -1,8 +1,12 @@
-// ========== КОНФИГУРАЦИЯ ==========
+// ============================================================
+// КОНФИГУРАЦИЯ
+// ============================================================
 const BOT_TOKEN = '8422981212:AAFx0HvRRFZy-JlTno_NXzUzpm2rJ-KWrBY';
 const CHANNEL_ID = -1004345602790;
 
-// ========== ИСТОЧНИКИ НОВОСТЕЙ ==========
+// ============================================================
+// ИСТОЧНИКИ НОВОСТЕЙ
+// ============================================================
 const SOURCES = {
   main: [
     'https://cointelegraph.com/feed',
@@ -22,12 +26,16 @@ const SOURCES = {
   ]
 };
 
-// ========== ХРАНИЛИЩЕ ==========
+// ============================================================
+// ХРАНИЛИЩЕ
+// ============================================================
 const newsStore = new Map();
 let stats = { total: 0, sent: 0, duplicates: 0, lastUpdate: null };
 const translateCache = new Map();
 
-// ========== ПЕРЕВОД ==========
+// ============================================================
+// ПЕРЕВОД
+// ============================================================
 async function translateToRussian(text) {
   if (translateCache.has(text)) {
     return translateCache.get(text);
@@ -51,7 +59,9 @@ async function translateToRussian(text) {
   }
 }
 
-// ========== ПАРСИНГ RSS ==========
+// ============================================================
+// ПАРСИНГ RSS
+// ============================================================
 async function fetchRSS(url) {
   try {
     const response = await fetch(url, {
@@ -81,7 +91,9 @@ async function fetchRSS(url) {
   }
 }
 
-// ========== ОТПРАВКА В TELEGRAM ==========
+// ============================================================
+// ОТПРАВКА В TELEGRAM
+// ============================================================
 async function sendToTelegram(message, category) {
   const url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage';
   const text = category ? '📰 [' + category + '] ' + message : message;
@@ -102,7 +114,9 @@ async function sendToTelegram(message, category) {
   }
 }
 
-// ========== СБОР НОВОСТЕЙ ==========
+// ============================================================
+// СБОР НОВОСТЕЙ
+// ============================================================
 async function fetchNews() {
   let newCount = 0;
   const results = [];
@@ -131,7 +145,9 @@ async function fetchNews() {
   return { newCount: newCount, total: stats.total, results: results.slice(0, 10) };
 }
 
-// ========== ОБРАБОТЧИК ==========
+// ============================================================
+// ГЛАВНЫЙ ОБРАБОТЧИК
+// ============================================================
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
