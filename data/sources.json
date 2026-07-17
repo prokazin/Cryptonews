@@ -1,0 +1,18 @@
+{
+  "main": [
+    "https://cointelegraph.com/rss",
+    "https://decrypt.co/feed",
+    "https://bitcoinmagazine.com/feed",
+    "https://coindesk.com/feed",
+    "https://cryptoslate.com/feed",
+    "https://news.bitcoin.com/feed"
+  ],
+  "altcoins": [
+    "https://cryptopotato.com/feed",
+    "https://altcoinbuzz.io/feed"
+  ],
+  "exclusive": [
+    "https://example-exclusive1.com/rss",
+    "https://example-exclusive2.com/rss"
+  ]
+}
